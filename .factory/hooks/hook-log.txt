@@ -1,0 +1,167 @@
+2026-08-14T14:18:19Z HOOK_FIRED command=factory detect "/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+2026-08-14T14:18:39Z HOOK_FIRED command=factory discover "/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+2026-08-14T14:18:45Z HOOK_FIRED command=factory study "/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+2026-08-14T14:18:51Z HOOK_FIRED command=ls -la /home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a/ && echo "---" && git -C /home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a log --oneline -10 && echo "---" && find /home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a -maxdepth 3 -not -path '*/.git/*' -not -path '*/.factory/*' -not -path '*/.claude/*' -not -path '*/skills/*' | head -50
+2026-08-14T14:18:55Z HOOK_FIRED command=ls -la /home/osilkin/breaking-proofs/ && echo "---" && cat /home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a/eval/score.py
+2026-08-14T14:18:59Z HOOK_FIRED command=cat /home/osilkin/breaking-proofs/README.md
+2026-08-14T14:19:08Z HOOK_FIRED command=ls /home/osilkin/breaking-proofs/.factory/strategy/ 2>/dev/null && cat /home/osilkin/breaking-proofs/.factory/config.json 2>/dev/null && cat /home/osilkin/breaking-proofs/factory.md 2>/dev/null || echo "No factory.md found"
+2026-08-14T14:19:14Z HOOK_FIRED command=ls /home/osilkin/breaking-proofs/.factory/ && echo "---" && cat /home/osilkin/breaking-proofs/.factory/strategy/observations.md
+2026-08-14T14:23:33Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+
+factory agent researcher --review-tag similar --task "Similar projects research for a Reed-Solomon proximity gap counterexample search harness. This project aims to find counterexamples to STARK soundness conjectures (MCA/correlated agreement beyond the Johnson bound) to compete for the Ethereum Foundation's \$1M Proximity Prize. 
+
+Search the web for:
+1. Existing counterexample search tools for Reed-Solomon codes (especially KKH26 ePrint 2026/782, Kambire arXiv 2604.09724)
+2. The deltastar.computer campaign and lalalune/ArkLib fork - what they've built, their approach, their results
+3. ethereum/soundcalc - what it does, how counterexamples would integrate
+4. Verified-zkEVM/ArkLib - the upstream Lean formalization
+5. Any other computational search campaigns targeting proximity gaps
+6. CryptanalysisBench or similar automated cryptanalysis frameworks
+
+Check .factory/archive/ for prior knowledge. Write findings to .factory/strategy/research-similar.md covering: similar projects found (with links), what they do well and what's missing, differentiation opportunities for a pure counterexample-search harness (as opposed to proof-search).
+Write output to: .factory/strategy/research-similar.md" --project "$PROJECT_PATH" --timeout 600 &
+
+factory agent researcher --review-tag techstack --task "Tech stack research for a Reed-Solomon proximity gap counterexample search harness. The project needs to:
+1. Do exact arithmetic over large prime fields (p up to 2^256, but typically 2^31 range like Goldilocks/BabyBear/KoalaBear)
+2. Evaluate Reed-Solomon codes over multiplicative subgroups (FFT domains, |D| up to 2^40)
+3. Compute Hamming distances between field vectors and RS codewords efficiently
+4. Search parameterized construction spaces (primes p ≡ 1 mod n, primitive roots, sumset structures)
+5. Run massively parallel searches across parameter windows
+6. Integrate with soundcalc for impact assessment
+
+Research and recommend:
+- Language choice (Python for prototyping + Rust/C++ for hot loops? Pure Rust? SageMath?)
+- Finite field arithmetic libraries (flint, NTL, arkworks, plonky3's field implementations, galois for Python)
+- FFT/NTT libraries for evaluation over multiplicative subgroups
+- Parallelism strategy (multiprocessing, rayon, GPU via CUDA)
+- Testing framework
+- Project structure and architecture patterns
+
+Write findings to .factory/strategy/research-techstack.md.
+Write output to: .factory/strategy/research-techstack.md" --project "$PROJECT_PATH" --timeout 600 &
+
+factory agent researcher --review-tag pitfalls --task "Pitfalls and scope research for building a Reed-Solomon proximity gap counterexample search harness for the Proximity Prize (\$1M, Ethereum Foundation).
+
+Research:
+1. Common mistakes in finite field arithmetic at scale (overflow, incorrect modular reduction, wrong primitive roots)
+2. Pitfalls in Reed-Solomon distance computation (confusing evaluation vs coefficient representation, wrong domain construction)
+3. Numerical precision issues - the README emphasizes NO floating point, exact arithmetic only
+4. Parameter space explosion - how to prune the search space intelligently
+5. The KKH26 construction uses Linnik's theorem and additive combinatorics - what are the implementation pitfalls?
+6. Prize submission rules require peer review acceptance - what does that mean for code quality/reproducibility?
+7. ePrint blocks automated fetching - data access constraints
+
+MVP scope recommendation:
+- Phase 1 should be: exact RS distance checker + known counterexample reproduction (KKH26 parameters)
+- What is the minimum viable counterexample verifier?
+- What parameters should we start searching in?
+
+Check .factory/archive/ for lessons from past builds. Write findings to .factory/strategy/research-pitfalls.md.
+Write output to: .factory/strategy/research-pitfalls.md" --project "$PROJECT_PATH" --timeout 600 &
+
+wait
+echo "All researchers complete"
+2026-08-14T14:23:33Z VERIFY_OK node=researcher_similar
+2026-08-14T14:23:47Z VERIFY_OK node=researcher_similar
+2026-08-14T14:23:47Z VERIFY_OK node=researcher_techstack
+2026-08-14T14:23:47Z VERIFY_OK node=researcher_pitfalls
+2026-08-14T14:23:47Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+
+# Artifact verification: researcher_similar
+_vfail=0
+_f="$PROJECT_PATH/.factory/strategy/research-similar.md"
+[ ! -f "$_f" ] && echo "VERIFY FAIL: researcher_similar: .factory/strategy/research-similar.md missing" && _vfail=1
+[ -f "$_f" ] && [ ! -s "$_f" ] && echo "VERIFY FAIL: researcher_similar: .factory/strategy/research-similar.md is empty" && _vfail=1
+[ -f "$_f" ] && [ "$(wc -c < "$_f")" -lt 50 ] && echo "VERIFY FAIL: researcher_similar: .factory/strategy/research-similar.md smaller than 50 bytes" && _vfail=1
+[ "$_vfail" -ne 0 ] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_FAIL node=researcher_similar" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt" && exit 1
+echo "VERIFY OK: researcher_similar artifacts validated"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_OK node=researcher_similar" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt"
+
+# Artifact verification: researcher_techstack
+_vfail=0
+_f="$PROJECT_PATH/.factory/strategy/research-techstack.md"
+[ ! -f "$_f" ] && echo "VERIFY FAIL: researcher_techstack: .factory/strategy/research-techstack.md missing" && _vfail=1
+[ -f "$_f" ] && [ ! -s "$_f" ] && echo "VERIFY FAIL: researcher_techstack: .factory/strategy/research-techstack.md is empty" && _vfail=1
+[ -f "$_f" ] && [ "$(wc -c < "$_f")" -lt 50 ] && echo "VERIFY FAIL: researcher_techstack: .factory/strategy/research-techstack.md smaller than 50 bytes" && _vfail=1
+[ "$_vfail" -ne 0 ] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_FAIL node=researcher_techstack" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt" && exit 1
+echo "VERIFY OK: researcher_techstack artifacts validated"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_OK node=researcher_techstack" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt"
+
+# Artifact verification: researcher_pitfalls
+_vfail=0
+_f="$PROJECT_PATH/.factory/strategy/research-pitfalls.md"
+[ ! -f "$_f" ] && echo "VERIFY FAIL: researcher_pitfalls: .factory/strategy/research-pitfalls.md missing" && _vfail=1
+[ -f "$_f" ] && [ ! -s "$_f" ] && echo "VERIFY FAIL: researcher_pitfalls: .factory/strategy/research-pitfalls.md is empty" && _vfail=1
+[ -f "$_f" ] && [ "$(wc -c < "$_f")" -lt 50 ] && echo "VERIFY FAIL: researcher_pitfalls: .factory/strategy/research-pitfalls.md smaller than 50 bytes" && _vfail=1
+[ "$_vfail" -ne 0 ] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_FAIL node=researcher_pitfalls" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt" && exit 1
+echo "VERIFY OK: researcher_pitfalls artifacts validated"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_OK node=researcher_pitfalls" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt"
+2026-08-14T14:24:11Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+cat "$PROJECT_PATH/.factory/strategy/research-similar.md" "$PROJECT_PATH/.factory/strategy/research-techstack.md" "$PROJECT_PATH/.factory/strategy/research-pitfalls.md" > "$PROJECT_PATH/.factory/strategy/research-combined.md"
+echo "Combined research written ($(wc -c < "$PROJECT_PATH/.factory/strategy/research-combined.md") bytes)"
+2026-08-14T14:28:34Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+
+factory agent strategist --task "Synthesize a project specification from research for a Reed-Solomon proximity gap counterexample search harness targeting the Ethereum Foundation's \$1M Proximity Prize.
+
+Read ALL tagged research files at .factory/strategy/research-*.md and the CEO's research review at .factory/reviews/ceo-verdict-research.md. Also read the project README.md at the parent directory /home/osilkin/breaking-proofs/README.md for the full problem context.
+
+KEY CONSTRAINTS from CEO research review:
+1. Phase 1 MUST be exact-arithmetic RS checker + known counterexample reproduction (not search yet)
+2. Python orchestration + Rust extension (PyO3/maturin) architecture
+3. No brute-force at |D|>2^28 — algebraic structure exploitation required for larger domains
+4. Prize submission deliverable is a paper, not code — plan phases accordingly
+5. Differentiation from deltastar.computer is computational search at scale via structured algebra, not Lean formalization
+6. No GPU/CUDA for v1
+7. soundcalc integration for impact assessment
+
+Produce a complete phased build plan with these requirements:
+- Phase 1 must be project scaffold + eval harness + exact RS checker
+- Every Phase must have substantive What/Why/Expected impact fields
+- Build EVERYTHING in this pass — only defer items requiring human intervention (e.g., paper writing, prize submission)
+- Include architecture decisions, file structure, and tech stack choices
+- Name the project 'breaking-proofs' (matching the repo name)
+
+Write the plan to .factory/strategy/current.md.
+Read: .factory/strategy/research-combined.md
+Write output to: .factory/strategy/current.md" --project "$PROJECT_PATH" --timeout 600
+2026-08-14T14:28:34Z VERIFY_OK node=strategist
+2026-08-14T14:28:43Z VERIFY_OK node=strategist
+2026-08-14T14:28:43Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+
+# Artifact verification: strategist
+_vfail=0
+_f="$PROJECT_PATH/.factory/strategy/current.md"
+[ ! -f "$_f" ] && echo "VERIFY FAIL: strategist: .factory/strategy/current.md missing" && _vfail=1
+[ -f "$_f" ] && [ ! -s "$_f" ] && echo "VERIFY FAIL: strategist: .factory/strategy/current.md is empty" && _vfail=1
+[ -f "$_f" ] && [ "$(wc -c < "$_f")" -lt 200 ] && echo "VERIFY FAIL: strategist: .factory/strategy/current.md smaller than 200 bytes" && _vfail=1
+[ -f "$_f" ] && ! grep -qE '\#\#\#\ Phase\ 1|\#\#\#\ Architecture' "$_f" && echo "VERIFY FAIL: strategist: .factory/strategy/current.md missing required sentinel (### Phase 1, ### Architecture)" && _vfail=1
+[ "$_vfail" -ne 0 ] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_FAIL node=strategist" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt" && exit 1
+echo "VERIFY OK: strategist artifacts validated"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) VERIFY_OK node=strategist" >> "$PROJECT_PATH/.factory/hooks/hook-log.txt"
+2026-08-14T14:44:34Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+
+factory agent strategist --task "REVISION REQUIRED — User rejected two assumptions in the current plan at .factory/strategy/current.md. Revise the plan with these corrections:
+
+CORRECTION 1: Lean 4 formalization IS in scope, not deferred. The user explicitly wants to write proofs in Lean. This is a core deliverable. The project should build on or fork Verified-zkEVM/ArkLib (the canonical Lean 4 SNARK formalization library). Lean proofs of counterexample properties, formalized MCA definitions, and machine-checked verification of found witnesses are all in scope. Integrate with the existing ArkLib ecosystem — don't reinvent definitions.
+
+CORRECTION 2: GPU IS available (just not on this specific node). GPU/CUDA acceleration should be included in the plan, not deferred. The user has access to GPU nodes. Plan for CUDA-accelerated NTT/field arithmetic for the search hot loops.
+
+KEEP EVERYTHING ELSE from the current plan — the 7-phase structure, Python+Rust hybrid, exact arithmetic, counterexample search focus, soundcalc integration, etc. But revise phases and add new phases as needed to incorporate:
+- A Lean 4 formalization phase (likely building on ArkLib)
+- GPU acceleration phase
+- Move these OUT of the Deferred section
+
+Read the current plan at .factory/strategy/current.md and the research files at .factory/strategy/research-*.md. Rewrite the full plan to .factory/strategy/current.md.
+
+Read: .factory/strategy/current.md, .factory/strategy/research-combined.md
+Write output to: .factory/strategy/current.md" --project "$PROJECT_PATH" --timeout 600
+2026-08-14T14:44:34Z VERIFY_OK node=strategist
+2026-08-14T14:44:42Z HOOK_FIRED command=PROJECT_PATH="/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a"
+
+_vfail=0
+_f="$PROJECT_PATH/.factory/strategy/current.md"
+[ ! -f "$_f" ] && echo "VERIFY FAIL: .factory/strategy/current.md missing" && _vfail=1
+[ -f "$_f" ] && [ "$(wc -c < "$_f")" -lt 200 ] && echo "VERIFY FAIL: .factory/strategy/current.md smaller than 200 bytes" && _vfail=1
+[ -f "$_f" ] && ! grep -qE '\#\#\#\ Phase\ 1|\#\#\#\ Architecture' "$_f" && echo "VERIFY FAIL: missing required sentinel" && _vfail=1
+[ "$_vfail" -ne 0 ] && exit 1
+echo "VERIFY OK: $(wc -c < "$_f") bytes"

@@ -1,0 +1,86 @@
+fork_qa:
+  type: ForkNode
+  id: fork_qa
+  targets: health_checker,code_reviewer,adversarial_tester
+  edges_out:
+  - target: join_qa
+    condition: null
+health_checker:
+  type: AgentNode
+  id: health_checker
+  role: health_checker
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/reviews/health-check.md
+  edges_out: []
+  slots:
+    task_prompt_health_checker: 'Execute health_checker task for the project.
+
+      Write output to: .factory/reviews/health-check.md'
+    timeout_health_checker: '600'
+code_reviewer:
+  type: AgentNode
+  id: code_reviewer
+  role: code_reviewer
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/reviews/code-review.md
+  edges_out: []
+  slots:
+    task_prompt_code_reviewer: 'Execute code_reviewer task for the project.
+
+      Write output to: .factory/reviews/code-review.md'
+    timeout_code_reviewer: '900'
+adversarial_tester:
+  type: AgentNode
+  id: adversarial_tester
+  role: adversarial_tester
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/reviews/adversarial-qa.md
+  edges_out: []
+  slots:
+    task_prompt_adversarial_tester: 'Execute adversarial_tester task for the project.
+
+      Write output to: .factory/reviews/adversarial-qa.md'
+    timeout_adversarial_tester: '1800'
+join_qa:
+  type: JoinNode
+  id: join_qa
+  sources: health_checker,code_reviewer,adversarial_tester
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  - .factory/reviews/code-review.md
+  - .factory/reviews/health-check.md
+  writes: []
+  edges_out:
+  - target: gate_precheck
+    condition: null
+gate_precheck:
+  type: GateNode
+  id: gate_precheck
+  evaluator_type: fn
+  evaluator_command: factory precheck {project_path} --score-before 0 --score-after
+    0
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  edges_out:
+  - target: post_review
+    condition: PROCEED
+  - target: post_review
+    condition: HALT
+post_review:
+  type: FnNode
+  id: post_review
+  command: factory review --verdict $VERDICT --pr $PR_NUMBER --score-before $SCORE_BEFORE
+    --score-after $SCORE_AFTER
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  writes: []
+  edges_out: []
+  slots:
+    finalize_command_post_review: factory review --verdict $VERDICT --pr $PR_NUMBER
+      --score-before $SCORE_BEFORE --score-after $SCORE_AFTER

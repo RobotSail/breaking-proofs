@@ -1,0 +1,86 @@
+diff_scope:
+  type: FnNode
+  id: diff_scope
+  command: python3 -c "import subprocess, re, sys; from pathlib import Path; changed
+    = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD~1'], text=True).strip().splitlines();
+    doc_files = [f for f in Path('{project_path}').rglob('*.md')]; affected = [];
+    [affected.append(str(d)) for d in doc_files for c in changed if c in d.read_text()];
+    scope = '# Doc Update Scope\n\n## Changed source files\n' + '\n'.join(f'- {{f}}'
+    for f in changed) + '\n\n## Affected doc files\n' + '\n'.join(f'- {{f}}' for f
+    in set(affected)); Path('{project_path}/.factory/doc_update_scope.md').write_text(scope);
+    print('PROCEED')"
+  reads: []
+  writes:
+  - .factory/doc_update_scope.md
+  edges_out:
+  - target: patch_docs
+    condition: null
+patch_docs:
+  type: AgentNode
+  id: patch_docs
+  role: researcher
+  blocking: 'true'
+  reads:
+  - .factory/doc_update_scope.md
+  writes:
+  - CLAUDE.md
+  - README.md
+  - docs/
+  edges_out:
+  - target: gate_patch
+    condition: null
+  slots:
+    task_prompt_patch_docs: 'Read the scoped changes at .factory/doc_update_scope.md.
+      Update only the affected documentation sections. Targeted updates only — do
+      not rewrite entire files.
+
+      Read: .factory/doc_update_scope.md
+
+      Write output to: CLAUDE.md, README.md, docs/'
+    timeout_patch_docs: '600'
+gate_patch:
+  type: GateNode
+  id: gate_patch
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/doc_update_scope.md
+  edges_out:
+  - target: revalidate
+    condition: PROCEED
+  - target: patch_docs
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_patch: Check that documentation patches match the diff scope.
+      Were all affected doc files touched? Do the updates accurately reflect the source
+      changes? RELOOP if patches are incomplete or inaccurate.
+    max_iterations_gate_patch: '3'
+revalidate:
+  type: FnNode
+  id: revalidate
+  command: 'python3 -c "import re, sys; from pathlib import Path; errors = []; scope
+    = Path(''{project_path}/.factory/doc_update_scope.md''); [errors.append(f''missing:
+    {{p}}'') for p in re.findall(r''`([^`]+\.(?:py|md|yaml|toml|json))`'', scope.read_text())
+    if not Path(''{project_path}/'' + p).exists()]; print(''PROCEED'' if not errors
+    else ''FAIL: '' + ''; ''.join(errors[:10]))"'
+  reads:
+  - .factory/doc_update_scope.md
+  writes: []
+  edges_out:
+  - target: gate_revalidate
+    condition: null
+gate_revalidate:
+  type: GateNode
+  id: gate_revalidate
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/doc_update_scope.md
+  edges_out:
+  - target: revalidate
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_revalidate: Final quality gate for documentation updates. Review
+      validation results and confirm patches are correct. PROCEED if all references
+      are valid. RELOOP if issues remain.
+    max_iterations_gate_revalidate: '3'

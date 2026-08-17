@@ -1,0 +1,270 @@
+fork_scan_research:
+  type: ForkNode
+  id: fork_scan_research
+  targets: researcher_tokens,researcher_components,researcher_patterns,researcher_ux
+  edges_out:
+  - target: researcher_tokens
+    condition: null
+  - target: researcher_components
+    condition: null
+  - target: researcher_patterns
+    condition: null
+  - target: researcher_ux
+    condition: null
+researcher_tokens:
+  type: AgentNode
+  id: researcher_tokens
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/token-audit.md
+  edges_out:
+  - target: join_scan_research
+    condition: null
+  slots:
+    task_prompt_researcher_tokens: 'Design token research. Find the project''s main
+      CSS/theme files (index.css, globals.css, theme.ts, tailwind.config, etc.). Extract
+      every color token, CSS custom property, and theme variable with values for all
+      theme modes. Search all component files for hardcoded color values (hex, rgb,
+      hsl) that bypass the token system. Count frequencies. Document the font families,
+      spacing scale, and border-radius tiers. Write to .factory/design-system/token-audit.md.
+
+      Write output to: .factory/design-system/token-audit.md'
+    timeout_researcher_tokens: '600'
+researcher_components:
+  type: AgentNode
+  id: researcher_components
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/component-inventory.md
+  edges_out:
+  - target: join_scan_research
+    condition: null
+  slots:
+    task_prompt_researcher_components: 'Component inventory research. Find the project''s
+      component library directory and catalog every shared component — names, props,
+      variant systems. Identify the primitive UI library (Radix, MUI, Chakra, Headless
+      UI, etc.) and which components wrap it. List feature-specific components. Document
+      UI dependencies from package.json. Map composition patterns. Write to .factory/design-system/component-inventory.md.
+
+      Write output to: .factory/design-system/component-inventory.md'
+    timeout_researcher_components: '600'
+researcher_patterns:
+  type: AgentNode
+  id: researcher_patterns
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/pattern-library.md
+  edges_out:
+  - target: join_scan_research
+    condition: null
+  slots:
+    task_prompt_researcher_patterns: 'Layout and pattern research. Read layout.tsx,
+      router.tsx, and every page.tsx in feature modules. Document the shell structure,
+      page templates, data-fetching patterns (e.g. TanStack Query, SWR, Apollo, RTK
+      Query), state management (e.g. Zustand, Redux, Pinia, Context), error handling,
+      motion/animation vocabulary, and accessibility patterns. Write to .factory/design-system/pattern-library.md.
+
+      Write output to: .factory/design-system/pattern-library.md'
+    timeout_researcher_patterns: '600'
+researcher_ux:
+  type: AgentNode
+  id: researcher_ux
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/ux-patterns.md
+  edges_out:
+  - target: join_scan_research
+    condition: null
+  slots:
+    task_prompt_researcher_ux: 'UX quality research. Analyze the project''s experiential
+      layer: animation choreography (stagger timing, easing curves, entrance sequences,
+      coordinated transitions, duration scale, exit animations, loading states), information
+      hierarchy (heading structure, visual weight, content density, progressive disclosure,
+      data presentation for non-technical users), and user-friendliness patterns (plain
+      language, contextual help, onboarding/empty states, error messages, feedback
+      patterns). Write to .factory/design-system/ux-patterns.md.
+
+      Write output to: .factory/design-system/ux-patterns.md'
+    timeout_researcher_ux: '600'
+join_scan_research:
+  type: JoinNode
+  id: join_scan_research
+  sources: researcher_tokens,researcher_components,researcher_patterns,researcher_ux
+  reads:
+  - .factory/design-system/component-inventory.md
+  - .factory/design-system/pattern-library.md
+  - .factory/design-system/token-audit.md
+  - .factory/design-system/ux-patterns.md
+  writes: []
+  edges_out:
+  - target: scan_auditor
+    condition: null
+scan_auditor:
+  type: AgentNode
+  id: scan_auditor
+  role: strategist
+  blocking: 'true'
+  reads:
+  - .factory/design-system/component-inventory.md
+  - .factory/design-system/pattern-library.md
+  - .factory/design-system/token-audit.md
+  - .factory/design-system/ux-patterns.md
+  writes:
+  - .factory/design-system/design-baseline.json
+  - .factory/design-system/rules.md
+  edges_out:
+  - target: fork_scan_checks
+    condition: null
+  slots:
+    task_prompt_scan_auditor: 'Design system auditor (scan mode). Read all four research
+      files: token-audit.md, component-inventory.md, pattern-library.md, and ux-patterns.md.
+      Synthesize into design-baseline.json and rules.md. If previous design-baseline.json
+      exists, diff and report drift. This is a scan-only run — no features will be
+      built.
+
+      Read: .factory/design-system/component-inventory.md, .factory/design-system/pattern-library.md,
+      .factory/design-system/token-audit.md, .factory/design-system/ux-patterns.md
+
+      Write output to: .factory/design-system/design-baseline.json, .factory/design-system/rules.md'
+    timeout_scan_auditor: '600'
+fork_scan_checks:
+  type: ForkNode
+  id: fork_scan_checks
+  targets: check_token_purity,check_dark_mode,check_a11y,check_component_import,check_font_family,check_patterns
+  edges_out:
+  - target: check_token_purity
+    condition: null
+  - target: check_dark_mode
+    condition: null
+  - target: check_a11y
+    condition: null
+  - target: check_component_import
+    condition: null
+  - target: check_font_family
+    condition: null
+  - target: check_patterns
+    condition: null
+check_token_purity:
+  type: FnNode
+  id: check_token_purity
+  command: cd {project_path} && SCAN_MODE=full bash .factory/design-system/checks/check-token-purity.sh
+    --score
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes: []
+  edges_out:
+  - target: join_scan_checks
+    condition: null
+check_dark_mode:
+  type: FnNode
+  id: check_dark_mode
+  command: cd {project_path} && SCAN_MODE=full bash .factory/design-system/checks/check-dark-mode.sh
+    --score
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes: []
+  edges_out:
+  - target: join_scan_checks
+    condition: null
+check_a11y:
+  type: FnNode
+  id: check_a11y
+  command: cd {project_path} && SCAN_MODE=full bash .factory/design-system/checks/check-a11y-baseline.sh
+    --score
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes: []
+  edges_out:
+  - target: join_scan_checks
+    condition: null
+check_component_import:
+  type: FnNode
+  id: check_component_import
+  command: cd {project_path} && SCAN_MODE=full bash .factory/design-system/checks/check-component-import.sh
+    --score
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes: []
+  edges_out:
+  - target: join_scan_checks
+    condition: null
+check_font_family:
+  type: FnNode
+  id: check_font_family
+  command: cd {project_path} && SCAN_MODE=full bash .factory/design-system/checks/check-font-family.sh
+    --score
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes: []
+  edges_out:
+  - target: join_scan_checks
+    condition: null
+check_patterns:
+  type: FnNode
+  id: check_patterns
+  command: cd {project_path} && SCAN_MODE=full bash .factory/design-system/checks/check-patterns.sh
+    --score
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes: []
+  edges_out:
+  - target: join_scan_checks
+    condition: null
+join_scan_checks:
+  type: JoinNode
+  id: join_scan_checks
+  sources: check_token_purity,check_dark_mode,check_a11y,check_component_import,check_font_family,check_patterns
+  reads: []
+  writes: []
+  edges_out:
+  - target: health_report_writer
+    condition: null
+health_report_writer:
+  type: AgentNode
+  id: health_report_writer
+  role: strategist
+  blocking: 'true'
+  reads:
+  - .factory/design-system/design-baseline.json
+  writes:
+  - .factory/design-system/health-report.json
+  edges_out:
+  - target: archivist_scan
+    condition: null
+  slots:
+    task_prompt_health_report_writer: 'Design health report writer. Read the output
+      of all 6 design check scripts and the design-baseline.json. Produce .factory/design-system/health-report.json
+      with overall_score (0.0-1.0), per-dimension scores (token_purity, dark_mode_coverage,
+      accessibility, component_wrapping, font_compliance, pattern_adherence), issue
+      counts, top issues list, trend data (compare with previous report if exists),
+      and actionable recommendations.
+
+      Read: .factory/design-system/design-baseline.json
+
+      Write output to: .factory/design-system/health-report.json'
+    timeout_health_report_writer: '600'
+archivist_scan:
+  type: AgentNode
+  id: archivist_scan
+  role: archivist
+  blocking: 'false'
+  reads:
+  - .factory/design-system/health-report.json
+  writes:
+  - .factory/archive/design-scan.md
+  edges_out: []
+  slots:
+    task_prompt_archivist_scan: 'Archive the design scan results and health report.
+
+      Read: .factory/design-system/health-report.json
+
+      Write output to: .factory/archive/design-scan.md'
+    timeout_archivist_scan: '300'

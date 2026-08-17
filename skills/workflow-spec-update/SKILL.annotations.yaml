@@ -1,0 +1,89 @@
+graph_update:
+  type: FnNode
+  id: graph_update
+  command: factory graph update {project_path}
+  reads: []
+  writes:
+  - graph.json
+  edges_out:
+  - target: diff_scope
+    condition: null
+diff_scope:
+  type: FnNode
+  id: diff_scope
+  command: factory spec scope {project_path}
+  reads: []
+  writes:
+  - .factory/spec_update_scope.md
+  edges_out:
+  - target: patch
+    condition: null
+patch:
+  type: AgentNode
+  id: patch
+  role: researcher
+  blocking: 'true'
+  reads:
+  - .factory/spec_update_scope.md
+  writes:
+  - SPEC.md
+  edges_out:
+  - target: gate_patch
+    condition: null
+  slots:
+    task_prompt_patch: 'Patch the repo spec based on scoped changes. Read the spec_patcher
+      prompt at factory/agents/prompts/spec_patcher.md. Read .factory/spec_update_scope.md
+      for the list of affected modules and new files. Read SPEC.md for the current
+      spec. Read changed source files and update affected module behavioral contracts.
+      Add new module entries for unmapped files. Remove modules whose paths no longer
+      exist. Write updated spec to SPEC.md.
+
+      Read: .factory/spec_update_scope.md
+
+      Write output to: SPEC.md'
+    timeout_patch: '600'
+gate_patch:
+  type: GateNode
+  id: gate_patch
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/spec_update_scope.md
+  - SPEC.md
+  edges_out:
+  - target: revalidate
+    condition: PROCEED
+  - target: patch
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_patch: 'Review the patched spec at SPEC.md. Check: do updates
+      match the diff scope? Were all affected modules touched? Were new files mapped
+      to modules? Were deleted modules removed? PROCEED if updates are reasonable.
+      RELOOP to patch if issues.'
+    max_iterations_gate_patch: '3'
+revalidate:
+  type: FnNode
+  id: revalidate
+  command: factory spec validate {project_path}
+  reads:
+  - SPEC.md
+  writes:
+  - .factory/spec_validation.md
+  edges_out:
+  - target: gate_revalidate
+    condition: null
+gate_revalidate:
+  type: GateNode
+  id: gate_revalidate
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/spec_validation.md
+  edges_out:
+  - target: patch
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_revalidate: Final quality gate for the updated spec. Read .factory/spec_validation.md.
+      If validation errors exist, RELOOP to patch for fixes. PROCEED if the spec passes
+      validation.
+    max_iterations_gate_revalidate: '3'

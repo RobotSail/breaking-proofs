@@ -1,0 +1,105 @@
+scan_project:
+  type: AgentNode
+  id: scan_project
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/doc_scan.md
+  edges_out:
+  - target: gate_scan
+    condition: null
+  slots:
+    task_prompt_scan_project: 'Scan the codebase for documentable surfaces. Identify
+      public APIs, CLI commands, configuration options, architecture patterns, and
+      entry points. Write a complete inventory to .factory/doc_scan.md.
+
+      Write output to: .factory/doc_scan.md'
+    timeout_scan_project: '600'
+gate_scan:
+  type: GateNode
+  id: gate_scan
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/doc_scan.md
+  edges_out:
+  - target: generate_docs
+    condition: PROCEED
+  - target: scan_project
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_scan: Check scan completeness. Are all major documentable surfaces
+      identified? Public APIs, CLI commands, config options, architecture, and entry
+      points should all be covered. RELOOP if significant surfaces are missing.
+    max_iterations_gate_scan: '3'
+generate_docs:
+  type: AgentNode
+  id: generate_docs
+  role: researcher
+  blocking: 'true'
+  reads:
+  - .factory/doc_scan.md
+  writes:
+  - CLAUDE.md
+  - README.md
+  - docs/
+  edges_out:
+  - target: gate_docs
+    condition: null
+  slots:
+    task_prompt_generate_docs: 'Generate or update documentation files based on the
+      scan inventory at .factory/doc_scan.md. Update README.md, CLAUDE.md, and docs/
+      files as needed. Ensure accuracy, completeness, and clear structure.
+
+      Read: .factory/doc_scan.md
+
+      Write output to: CLAUDE.md, README.md, docs/'
+    timeout_generate_docs: '600'
+gate_docs:
+  type: GateNode
+  id: gate_docs
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - CLAUDE.md
+  - README.md
+  edges_out:
+  - target: validate_docs
+    condition: PROCEED
+  - target: generate_docs
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_docs: Review generated documentation. Is it accurate, complete,
+      and well-structured? Do the docs match the scan inventory? RELOOP if documentation
+      has gaps or inaccuracies.
+    max_iterations_gate_docs: '3'
+validate_docs:
+  type: FnNode
+  id: validate_docs
+  command: 'python3 -c "import re, sys; from pathlib import Path; errors = []; scan
+    = Path(''{project_path}/.factory/doc_scan.md''); [errors.append(f''missing: {{p}}'')
+    for p in re.findall(r''`([^`]+\.(?:py|md|yaml|toml|json))`'', scan.read_text())
+    if not Path(''{project_path}/'' + p).exists()]; print(''PROCEED'' if not errors
+    else ''FAIL: '' + ''; ''.join(errors[:10]))"'
+  reads:
+  - .factory/doc_scan.md
+  writes: []
+  edges_out:
+  - target: gate_validate
+    condition: null
+gate_validate:
+  type: GateNode
+  id: gate_validate
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/doc_scan.md
+  edges_out:
+  - target: validate_docs
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_validate: Final quality gate. Review validation results and overall
+      documentation quality. PROCEED if all references are valid and docs are ready.
+      RELOOP if issues remain.
+    max_iterations_gate_validate: '3'

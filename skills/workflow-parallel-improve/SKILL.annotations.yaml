@@ -1,0 +1,137 @@
+study:
+  type: Study
+  id: study
+  command: factory study {project_path}
+  writes:
+  - .factory/strategy/observations.md
+  edges_out:
+  - target: researcher
+    condition: null
+researcher:
+  type: AgentNode
+  id: researcher
+  role: researcher
+  blocking: 'true'
+  reads:
+  - .factory/strategy/observations.md
+  writes:
+  - .factory/strategy/research-local.md
+  edges_out:
+  - target: gate_research
+    condition: null
+  slots:
+    task_prompt_researcher: 'Deep research for the project. Read observations at .factory/strategy/observations.md.
+      Analyze codebase structure, eval scores, and experiment history. Search the
+      web for best practices relevant to weak dimensions. Check .factory/archive/
+      for prior knowledge. Write findings to .factory/strategy/research-local.md.
+
+      Read: .factory/strategy/observations.md
+
+      Write output to: .factory/strategy/research-local.md'
+    timeout_researcher: '600'
+gate_research:
+  type: GateNode
+  id: gate_research
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/strategy/research-local.md
+  edges_out:
+  - target: strategist
+    condition: PROCEED
+  - target: researcher
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_research: Are observations grounded in data? Did web research
+      surface useful patterns? Any blind spots in the analysis?
+    max_iterations_gate_research: '3'
+strategist:
+  type: AgentNode
+  id: strategist
+  role: strategist
+  blocking: 'true'
+  reads:
+  - .factory/strategy/observations.md
+  - .factory/strategy/research-local.md
+  writes:
+  - .factory/strategy/current.md
+  edges_out:
+  - target: gate_strategy
+    condition: null
+  slots:
+    task_prompt_strategist: 'Generate prioritized hypotheses for PARALLEL execution.
+      Read the backlog at .factory/strategy/backlog.md — clear as many items as possible.
+      Read Hypothesis Budget from observations for constraints. Read CEO research
+      review at .factory/reviews/ceo-verdict-researcher.md. Generate MULTIPLE independent
+      hypotheses that can run concurrently. Each hypothesis must target different
+      files/areas to avoid merge conflicts. Tag backlog items with **Backlog item:**
+      and new items with **New:**. Write to .factory/strategy/current.md with each
+      hypothesis under a ## Hypothesis N heading.
+
+      Read: .factory/strategy/observations.md, .factory/strategy/research-local.md
+
+      Write output to: .factory/strategy/current.md'
+    timeout_strategist: '600'
+gate_strategy:
+  type: GateNode
+  id: gate_strategy
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/strategy/current.md
+  edges_out:
+  - target: fork_experiments
+    condition: PROCEED
+  - target: strategist
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_strategy: 'HARD GATE for parallel experiments. Check: Are hypotheses
+      independent (target different files/areas)? Would merge conflicts be unlikely?
+      Each specific enough to implement? Scoped to one PR each? Expected eval impact
+      realistic? Follows FEEC priority? Write PLAN APPROVED with approved hypotheses.'
+    max_iterations_gate_strategy: '3'
+fork_experiments:
+  type: SubgraphForkNode
+  id: fork_experiments
+  entry: exp_begin
+  exit: exp_eval
+  edges_out:
+  - target: join_experiments
+    condition: null
+join_experiments:
+  type: JoinNode
+  id: join_experiments
+  sources: fork_experiments
+  reads:
+  - .factory/parallel_results.json
+  writes:
+  - .factory/parallel_joined.json
+  edges_out:
+  - target: select_best
+    condition: null
+select_best:
+  type: SelectionNode
+  id: select_best
+  strategy: best_score
+  edges_out:
+  - target: archivist
+    condition: null
+archivist:
+  type: AgentNode
+  id: archivist
+  role: archivist
+  blocking: 'false'
+  reads:
+  - .factory/selection_result.json
+  writes:
+  - .factory/archive/experiment.md
+  edges_out: []
+  slots:
+    task_prompt_archivist: 'Archive parallel experiment tournament results. Record
+      which hypotheses were tested, their scores, which one won and why, and learnings
+      from losers.
+
+      Read: .factory/selection_result.json
+
+      Write output to: .factory/archive/experiment.md'
+    timeout_archivist: '300'
