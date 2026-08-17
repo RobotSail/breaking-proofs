@@ -23,14 +23,23 @@ Parameters needed from the paper:
 This test module provides:
   1. The parametric framework for any KKH26-style construction
   2. A small concrete verification over F_5 (the simplest case)
-  3. TODO markers for the exact parameters from the paper
+  3. Concrete KKH26 instance tests derived from arXiv:2604.09724
 """
+
+import math
 
 from breaking_proofs.oracle.agreement import has_correlated_agreement
 from breaking_proofs.oracle.distance import min_hamming_distance
 from breaking_proofs.oracle.field import build_evaluation_domain
 from breaking_proofs.oracle.incidence import affine_line_word, incidence_count
-from breaking_proofs.oracle.rs_code import encode_polynomial, enumerate_codebook
+from breaking_proofs.oracle.rs_code import enumerate_codebook
+from breaking_proofs.search.construction import (
+    build_kkh26_instance,
+    build_subgroup,
+    evaluate_monomial,
+    r_fold_sumset,
+)
+from breaking_proofs.search.params import KKH26Params, generate_candidates
 
 
 class TestKKH26Framework:
@@ -164,33 +173,66 @@ class TestKKH26Construction:
         ds = self.difference_set(S, p)
         assert 0 in ds
 
-    def test_parametric_construction_placeholder(self):
-        """Placeholder for the full KKH26 parametric construction.
+    def test_smallest_kkh26_construction(self):
+        """Verify smallest KKH26 instance (ρ=1/8, p=17, n=16, k=2)
+        against the brute-force oracle.
 
-        To complete this test, the following parameters are needed from
-        arXiv 2604.09724 / ePrint 2026/782:
-
-        1. The specific prime p and subgroup order n for the smallest instance
-        2. The subset S ⊆ D used in the sumset construction
-        3. The polynomial coefficients for f and g derived from S
-        4. The target distance theta = 1 - rho - eta and the claimed eta
-
-        Once these are extracted, this test should:
-        - Construct f, g from the paper's recipe
-        - Verify incidence_count matches the paper's claimed count
-        - Verify correlated agreement fails as claimed
-        - Confirm the distance is in the window (between Johnson and capacity)
+        f = X^4, g = X^3 over RS[F_17, D, 2] at δ_n = 12.
+        Correlated agreement is impossible: deg(g - v_g) ≤ 3 < n - δ_n = 4.
         """
-        # Minimal smoke test: the construction framework is callable
-        p, n, k = 5, 4, 2
-        domain = build_evaluation_domain(p, n)
-        codebook = enumerate_codebook(p, k, domain)
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=8, K=4, C=0.5)
+        assert params is not None
+        assert params.p == 17
+        assert params.n == 16
+        assert params.k == 2
+        assert params.r == 4
+        assert params.delta_n == 12
 
-        f = encode_polynomial([1, 0], domain, p)
-        g = encode_polynomial([0, 1], domain, p)
-        inc = incidence_count(f, g, codebook, p, 1)
-        assert isinstance(inc, int)
-        assert inc >= 0
+        instance = build_kkh26_instance(params)
+        assert len(instance.f) == 16
+        assert len(instance.g) == 16
+
+        # Verify monomial evaluations: f = X^4, g = X^3
+        for i, x in enumerate(instance.domain):
+            assert instance.f[i] == pow(x, 4, 17)
+            assert instance.g[i] == pow(x, 3, 17)
+
+        # m=1 ⇒ H = D (degenerate), H^(+4) covers all of F_17
+        assert len(instance.subgroup) == 16
+        assert set(instance.subgroup) == set(instance.domain)
+        assert instance.witnesses is not None
+        assert len(instance.witnesses) == 17
+
+        # Brute-force oracle verification
+        codebook = enumerate_codebook(17, 2, instance.domain)
+
+        ca = has_correlated_agreement(instance.f, instance.g, codebook, 17, 12)
+        assert not ca, "No correlated agreement expected"
+
+        inc = incidence_count(instance.f, instance.g, codebook, 17, 12)
+        assert inc > 0, f"Expected positive incidence, got {inc}"
+
+    def test_kkh26_rate_one_quarter(self):
+        """Verify ρ=1/4 instance (p=17, n=16, k=4, r=6) construction."""
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=4, K=4, C=0.5)
+        assert params is not None
+        assert params.r == 6
+        assert params.k == 4
+        assert params.delta_n == 10
+
+        instance = build_kkh26_instance(params)
+
+        # f = X^6, g = X^5
+        for i, x in enumerate(instance.domain):
+            assert instance.f[i] == pow(x, 6, 17)
+            assert instance.g[i] == pow(x, 5, 17)
+
+        # Distance δ = 1 - 6/16 = 5/8 is between Johnson and capacity
+        rho = 0.25
+        delta = 1 - params.r / params.s
+        johnson = 1 - rho**0.5
+        capacity = 1 - rho
+        assert johnson < delta < capacity
 
 
 class TestKKH26WindowAnalysis:
@@ -238,3 +280,84 @@ class TestKKH26WindowAnalysis:
             c = self.capacity_bound(rho)
             window = c - j
             assert window > 0
+
+
+class TestKKH26ParamsDerivation:
+    """Test the paper-native parameterization module."""
+
+    def test_smallest_rate_one_eighth(self):
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=8, K=4, C=0.5)
+        assert params is not None
+        assert params.s == 16
+        assert params.m == 1
+        assert params.n == 16
+        assert params.r == 4
+        assert params.k == 2
+        assert params.p == 17
+        assert params.delta_n == 12
+        assert params.rho == 0.125
+
+    def test_smallest_rate_one_quarter(self):
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=4, K=4, C=0.5)
+        assert params is not None
+        assert params.n == 16
+        assert params.r == 6
+        assert params.k == 4
+        assert params.delta_n == 10
+
+    def test_rate_one_half_rejected(self):
+        """ρ ≥ 1/2 is invalid for KKH26 (log(1/(2ρ)) must be positive)."""
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=2, K=4, C=0.5)
+        assert params is None
+
+    def test_small_K_rejected(self):
+        """K must exceed 9/(2·ln(8)) ≈ 2.163."""
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=8, K=2, C=0.5)
+        assert params is None
+
+    def test_non_power_of_two_K_rejected(self):
+        params = KKH26Params.derive(alpha=4, rho_num=1, rho_den=8, K=3, C=0.5)
+        assert params is None
+
+    def test_generate_candidates_ordering(self):
+        candidates = generate_candidates(max_alpha=6)
+        assert len(candidates) > 0
+        for i in range(len(candidates) - 1):
+            assert candidates[i].n <= candidates[i + 1].n
+
+    def test_constraint_validation(self):
+        """All generated candidates satisfy the paper's constraints."""
+        candidates = generate_candidates(max_alpha=6)
+        for p in candidates:
+            assert abs(p.k / p.n - p.rho) < 1e-10
+            assert 9 / (2 * math.log(8)) < p.K
+            assert p.C / (p.rho * math.log(1 / (2 * p.rho))) < p.K
+            assert (p.p - 1) % p.n == 0
+
+
+class TestKKH26ConstructionHelpers:
+    """Test construction helper functions."""
+
+    def test_evaluate_monomial(self):
+        domain = build_evaluation_domain(17, 16)
+        result = evaluate_monomial(4, domain, 17)
+        assert len(result) == 16
+        for i, x in enumerate(domain):
+            assert result[i] == pow(x, 4, 17)
+
+    def test_build_subgroup_m1(self):
+        """m=1 gives H = D."""
+        domain = build_evaluation_domain(17, 16)
+        H = build_subgroup(domain, m=1, s=16)
+        assert len(H) == 16
+        assert set(H) == set(domain)
+
+    def test_r_fold_sumset_small(self):
+        """2-fold sumset of {1, 2, 3} mod 7."""
+        result = r_fold_sumset([1, 2, 3], r=2, p=7)
+        assert result == {3, 4, 5}  # 1+2=3, 1+3=4, 2+3=5
+
+    def test_r_fold_sumset_wraps(self):
+        """Sumset wraps around mod p."""
+        result = r_fold_sumset([5, 6], r=2, p=7)
+        assert result == {4}  # 5+6 = 11 ≡ 4 mod 7
