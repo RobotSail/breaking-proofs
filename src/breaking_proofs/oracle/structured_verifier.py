@@ -8,12 +8,53 @@ the trust anchor for small-field cross-checks (Sacred Rule 1).
 from itertools import combinations
 from math import comb
 
+import galois
+import numpy as np
+
 from breaking_proofs.logging import get_logger
 from breaking_proofs.oracle.incidence import affine_line_word
 
 logger = get_logger(__name__)
 
 MAX_SUBSET_TRIALS = 2000
+
+_gf_cache: dict[int, type] = {}
+
+
+def _get_gf(p: int) -> type:
+    """Return (cached) galois.GF(p) class."""
+    if p not in _gf_cache:
+        _gf_cache[p] = galois.GF(p)
+    return _gf_cache[p]
+
+
+def batch_mod_inverse(xs: list[int], p: int) -> list[int]:
+    """Compute modular inverses of all xs mod p using Montgomery's trick.
+
+    Instead of k independent pow(x, p-2, p) calls, uses 1 inversion +
+    3(k-1) multiplications: accumulate running products forward, invert
+    the final product, walk backward to recover individual inverses.
+    """
+    k = len(xs)
+    if k == 0:
+        return []
+    if k == 1:
+        return [pow(xs[0], p - 2, p)]
+
+    prefix = [0] * k
+    prefix[0] = xs[0] % p
+    for i in range(1, k):
+        prefix[i] = (prefix[i - 1] * (xs[i] % p)) % p
+
+    inv_all = pow(prefix[-1], p - 2, p)
+
+    result = [0] * k
+    for i in range(k - 1, 0, -1):
+        result[i] = (inv_all * prefix[i - 1]) % p
+        inv_all = (inv_all * (xs[i] % p)) % p
+    result[0] = inv_all
+
+    return result
 
 
 def lagrange_eval(xs: list[int], ys: list[int], x: int, p: int) -> int:
@@ -22,10 +63,13 @@ def lagrange_eval(xs: list[int], ys: list[int], x: int, p: int) -> int:
     Given k points (xs[i], ys[i]), returns Q(x) where Q is the unique
     polynomial of degree < k passing through all points.
 
-    All arithmetic is exact integer mod p. O(k^2) per evaluation.
+    Uses batch_mod_inverse (Montgomery's trick) to compute all k
+    denominator inversions with a single modular exponentiation.
+    All arithmetic is exact integer mod p.
     """
     k = len(xs)
-    result = 0
+    denoms = [1] * k
+    numers = [0] * k
     for i in range(k):
         numer = ys[i]
         denom = 1
@@ -33,7 +77,14 @@ def lagrange_eval(xs: list[int], ys: list[int], x: int, p: int) -> int:
             if j != i:
                 numer = (numer * ((x - xs[j]) % p)) % p
                 denom = (denom * ((xs[i] - xs[j]) % p)) % p
-        result = (result + (numer * pow(denom, p - 2, p)) % p) % p
+        numers[i] = numer
+        denoms[i] = denom
+
+    inv_denoms = batch_mod_inverse(denoms, p)
+
+    result = 0
+    for i in range(k):
+        result = (result + (numers[i] * inv_denoms[i]) % p) % p
     return result
 
 
@@ -43,14 +94,21 @@ def _count_agreement_from_subset(
     indices: tuple[int, ...] | list[int],
     p: int,
 ) -> int:
-    """Interpolate from subset indices and count agreement on full domain."""
-    xs = [domain[i] for i in indices]
-    ys = [word[i] for i in indices]
-    count = 0
-    for j in range(len(domain)):
-        if lagrange_eval(xs, ys, domain[j], p) == word[j]:
-            count += 1
-    return count
+    """Interpolate from subset indices and count agreement on full domain.
+
+    Uses galois.lagrange_poly for vectorized evaluation at all domain
+    points in a single call, replacing the per-point Python loop.
+    """
+    GF = _get_gf(p)
+    xs = GF([domain[i] for i in indices])
+    ys = GF([word[i] for i in indices])
+    poly = galois.lagrange_poly(xs, ys)
+
+    domain_gf = GF(domain)
+    evals = poly(domain_gf)
+
+    word_gf = GF(word)
+    return int(np.sum(evals == word_gf))
 
 
 def verify_agreement_set(

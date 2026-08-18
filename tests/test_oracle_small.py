@@ -15,6 +15,7 @@ from breaking_proofs.oracle.distance import min_hamming_distance
 from breaking_proofs.oracle.field import build_evaluation_domain
 from breaking_proofs.oracle.incidence import incidence_count
 from breaking_proofs.oracle.rs_code import encode_polynomial, enumerate_codebook
+from breaking_proofs.oracle.structured_verifier import batch_mod_inverse
 
 
 @pytest.fixture
@@ -178,3 +179,33 @@ class TestDeltaStarReproduction:
             inc = incidence_count(f, g, codebook, p, delta_n)
             assert inc >= prev_inc
             prev_inc = inc
+
+
+class TestBatchModInverse:
+    """Verify batch_mod_inverse matches individual pow(x, p-2, p) calls."""
+
+    @pytest.mark.parametrize("p", [5, 7, 11, 13, 17, 23])
+    def test_batch_matches_individual(self, p):
+        xs = list(range(1, p))
+        expected = [pow(x, p - 2, p) for x in xs]
+        result = batch_mod_inverse(xs, p)
+        assert result == expected, f"Mismatch for p={p}: {result} != {expected}"
+
+    def test_empty_input(self):
+        assert batch_mod_inverse([], 7) == []
+
+    def test_single_element(self):
+        assert batch_mod_inverse([3], 7) == [pow(3, 5, 7)]
+
+    @pytest.mark.parametrize("p", [5, 7, 11])
+    def test_inverse_product_is_one(self, p):
+        xs = list(range(1, p))
+        inverses = batch_mod_inverse(xs, p)
+        for x, inv in zip(xs, inverses, strict=True):
+            assert (x * inv) % p == 1, f"x={x}, inv={inv}, p={p}"
+
+    def test_repeated_values(self):
+        xs = [3, 3, 3]
+        p = 7
+        expected = [pow(3, p - 2, p)] * 3
+        assert batch_mod_inverse(xs, p) == expected
