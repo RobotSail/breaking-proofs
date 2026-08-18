@@ -13,6 +13,7 @@ from breaking_proofs.oracle.reference import (
     ref_min_distance,
 )
 from breaking_proofs.oracle.rs_code import enumerate_codebook
+from breaking_proofs.oracle.structured_verifier import incidence_count_structured
 
 SMALL_PRIMES_WITH_ROOTS = [
     (5, 4),   # F_5, domain = F_5^x, n=4
@@ -101,3 +102,52 @@ class TestIncidenceParity:
         inc_galois = incidence_count(f, g, galois_cb, p, delta_n)
         inc_ref = ref_incidence_count(f, g, ref_cb, p, delta_n)
         assert inc_galois == inc_ref
+
+
+class TestStructuredVerifierParity:
+    """Verify vectorized incidence_count_structured matches ref_incidence_count."""
+
+    @given(params=field_and_code())
+    @settings(max_examples=10, deadline=120000)
+    def test_structured_matches_reference(self, params):
+        p, n, k, f, g = params
+        if p**k > 1000 or p > 11:
+            return
+
+        delta_n = n // 2
+
+        ref_domain = ref_build_domain(p, n)
+        ref_cb = ref_enumerate_codebook(p, k, ref_domain)
+        inc_ref = ref_incidence_count(f, g, ref_cb, p, delta_n)
+
+        galois_domain = build_evaluation_domain(p, n)
+        inc_struct = incidence_count_structured(f, g, galois_domain, p, k, delta_n)
+
+        assert inc_struct == inc_ref, (
+            f"structured={inc_struct} != ref={inc_ref} "
+            f"for p={p}, n={n}, k={k}, delta_n={delta_n}"
+        )
+
+    def test_structured_matches_reference_deterministic(self):
+        """Fixed cases from SMALL_PRIMES_WITH_ROOTS for deterministic coverage."""
+        for p, n in [(5, 4), (7, 2), (7, 3)]:
+            for k in range(1, min(n, 4) + 1):
+                if p**k > 1000:
+                    continue
+
+                ref_domain = ref_build_domain(p, n)
+                ref_cb = ref_enumerate_codebook(p, k, ref_domain)
+                galois_domain = build_evaluation_domain(p, n)
+
+                f = list(range(n))
+                g = [(i * 2 + 1) % p for i in range(n)]
+                delta_n = n // 2
+
+                inc_ref = ref_incidence_count(f, g, ref_cb, p, delta_n)
+                inc_struct = incidence_count_structured(
+                    f, g, galois_domain, p, k, delta_n
+                )
+                assert inc_struct == inc_ref, (
+                    f"structured={inc_struct} != ref={inc_ref} "
+                    f"for p={p}, n={n}, k={k}"
+                )
