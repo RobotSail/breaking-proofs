@@ -128,5 +128,69 @@ def reproduce_kkh26(alpha: int, rho_num: int, rho_den: int, k_val: int, c_val: f
                    "(correlated agreement check skipped - instance too large for brute force)")
 
 
+@main.command()
+@click.option("--log", "log_path", type=click.Path(exists=True), required=True,
+              help="Path to JSONL search log")
+@click.option("--run-id", default=None, help="Filter to a specific run ID")
+@click.option("--output", "out_path", type=click.Path(), default=None,
+              help="Write report to file instead of stdout")
+def report(log_path: str, run_id: str | None, out_path: str | None):
+    """Analyze a search log and produce a Markdown report."""
+    from pathlib import Path
+
+    from breaking_proofs.report.analysis import analyze_search_log
+    from breaking_proofs.report.formatter import format_report
+
+    analysis = analyze_search_log(Path(log_path), run_id=run_id)
+    md = format_report(analysis)
+
+    if out_path:
+        Path(out_path).write_text(md)
+        click.echo(f"Report written to {out_path}")
+    else:
+        click.echo(md)
+
+
+@main.command()
+@click.option("--hit", "hit_json", type=str, required=True,
+              help="Single search hit as JSON string")
+def significance(hit_json: str):
+    """Check the soundcalc significance of a single search hit."""
+    from breaking_proofs.report.soundcalc_check import classify_hit
+
+    hit = json.loads(hit_json)
+
+    params = hit.get("params", hit)
+    rho_num = params.get("rho_num")
+    rho_den = params.get("rho_den")
+    delta_n = params.get("delta_n")
+    n = params.get("n")
+
+    if "rho" in hit and "theta" in hit:
+        rho = hit["rho"]
+        theta = hit["theta"]
+    elif rho_num is not None and rho_den is not None and delta_n is not None and n is not None:
+        rho = rho_num / rho_den
+        theta = delta_n / n
+    else:
+        raise click.ClickException(
+            "Hit JSON must contain (rho, theta) or params with (rho_num, rho_den, delta_n, n)"
+        )
+
+    result = classify_hit(theta, rho)
+
+    output = {
+        "regime": result.regime.value,
+        "rho": result.rho,
+        "theta": result.theta,
+        "udr_bound": round(result.udr_bound, 6),
+        "jbr_bound": round(result.jbr_bound, 6),
+        "current_bound": round(result.current_bound, 6),
+        "measured_value": result.measured_value,
+        "is_significant": result.is_significant,
+    }
+    click.echo(json.dumps(output, indent=2))
+
+
 if __name__ == "__main__":
     main()
