@@ -22,9 +22,12 @@ def min_hamming_distance(w: list[int], codebook: list[list[int]], p: int) -> int
             best = d
             if d == 0:
                 break
+    logger.debug("min_hamming_distance", n=len(w), codebook_size=len(codebook), min_dist=best)
     return best
 
 
 def is_delta_close(w: list[int], codebook: list[list[int]], p: int, delta_n: int) -> bool:
     """Check if Δ(w, C) ≤ delta_n (delta_n is the absolute threshold, not normalized)."""
-    return min_hamming_distance(w, codebook, p) <= delta_n
+    d = min_hamming_distance(w, codebook, p)
+    logger.debug("is_delta_close", n=len(w), delta_n=delta_n, min_dist=d, is_close=d <= delta_n)
+    return d <= delta_n

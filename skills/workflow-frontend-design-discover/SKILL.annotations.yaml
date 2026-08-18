@@ -1,0 +1,246 @@
+fork_discover_research:
+  type: ForkNode
+  id: fork_discover_research
+  targets: researcher_tokens,researcher_components,researcher_patterns,researcher_ux,researcher_infra
+  edges_out:
+  - target: researcher_tokens
+    condition: null
+  - target: researcher_components
+    condition: null
+  - target: researcher_patterns
+    condition: null
+  - target: researcher_ux
+    condition: null
+  - target: researcher_infra
+    condition: null
+researcher_tokens:
+  type: AgentNode
+  id: researcher_tokens
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/token-audit.md
+  edges_out:
+  - target: join_discover_research
+    condition: null
+  slots:
+    task_prompt_researcher_tokens: 'Design token research. Find the project''s main
+      CSS/theme files (index.css, globals.css, theme.ts, tailwind.config, etc.). Extract
+      every color token, CSS custom property, and theme variable with values for all
+      theme modes. Search all component files for hardcoded color values (hex, rgb,
+      hsl) that bypass the token system. Count frequencies. Document the font families,
+      spacing scale, and border-radius tiers. Write to .factory/design-system/token-audit.md.
+
+      Write output to: .factory/design-system/token-audit.md'
+    timeout_researcher_tokens: '600'
+researcher_components:
+  type: AgentNode
+  id: researcher_components
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/component-inventory.md
+  edges_out:
+  - target: join_discover_research
+    condition: null
+  slots:
+    task_prompt_researcher_components: 'Component inventory research. Find the project''s
+      component library directory and catalog every shared component — names, props,
+      variant systems. Identify the primitive UI library (Radix, MUI, Chakra, Headless
+      UI, etc.) and which components wrap it. List feature-specific components. Document
+      UI dependencies from package.json. Map composition patterns. Write to .factory/design-system/component-inventory.md.
+
+      Write output to: .factory/design-system/component-inventory.md'
+    timeout_researcher_components: '600'
+researcher_patterns:
+  type: AgentNode
+  id: researcher_patterns
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/pattern-library.md
+  edges_out:
+  - target: join_discover_research
+    condition: null
+  slots:
+    task_prompt_researcher_patterns: 'Layout and pattern research. Read layout.tsx,
+      router.tsx, and every page.tsx in feature modules. Document the shell structure,
+      page templates, data-fetching patterns (e.g. TanStack Query, SWR, Apollo, RTK
+      Query), state management (e.g. Zustand, Redux, Pinia, Context), error handling,
+      motion/animation vocabulary, and accessibility patterns. Write to .factory/design-system/pattern-library.md.
+
+      Write output to: .factory/design-system/pattern-library.md'
+    timeout_researcher_patterns: '600'
+researcher_ux:
+  type: AgentNode
+  id: researcher_ux
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/ux-patterns.md
+  edges_out:
+  - target: join_discover_research
+    condition: null
+  slots:
+    task_prompt_researcher_ux: 'UX quality research. Analyze the project''s experiential
+      layer: animation choreography (stagger timing, easing curves, entrance sequences,
+      coordinated transitions, duration scale, exit animations, loading states), information
+      hierarchy (heading structure, visual weight, content density, progressive disclosure,
+      data presentation for non-technical users), and user-friendliness patterns (plain
+      language, contextual help, onboarding/empty states, error messages, feedback
+      patterns). Write to .factory/design-system/ux-patterns.md.
+
+      Write output to: .factory/design-system/ux-patterns.md'
+    timeout_researcher_ux: '600'
+researcher_infra:
+  type: AgentNode
+  id: researcher_infra
+  role: researcher
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/design-system/infra-context.md
+  edges_out:
+  - target: join_discover_research
+    condition: null
+  slots:
+    task_prompt_researcher_infra: 'Infrastructure context research. Discover the backend
+      deployment architecture by reading Dockerfile, docker-compose.yml, k8s/ manifests,
+      and Helm charts. Identify what environment the backend runs in (container, K8s
+      pod, VM, serverless) and what system tools are available inside the container.
+      Examine the backend API architecture: framework (FastAPI, Flask, etc.), router
+      registration pattern, how new endpoints are added, existing endpoint inventory.
+      Map resource access patterns: how the backend reaches external resources — K8s
+      API via in-cluster config, SSH backends, database connections, external APIs.
+      Document data sources: where data comes from (K8s node resources, subprocess
+      calls, database queries, external APIs) and which client libraries are available.
+      Write to .factory/design-system/infra-context.md.
+
+      Write output to: .factory/design-system/infra-context.md'
+    timeout_researcher_infra: '600'
+join_discover_research:
+  type: JoinNode
+  id: join_discover_research
+  sources: researcher_tokens,researcher_components,researcher_patterns,researcher_ux,researcher_infra
+  reads:
+  - .factory/design-system/component-inventory.md
+  - .factory/design-system/infra-context.md
+  - .factory/design-system/pattern-library.md
+  - .factory/design-system/token-audit.md
+  - .factory/design-system/ux-patterns.md
+  writes: []
+  edges_out:
+  - target: gate_discover_research
+    condition: null
+gate_discover_research:
+  type: GateNode
+  id: gate_discover_research
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/design-system/component-inventory.md
+  - .factory/design-system/infra-context.md
+  - .factory/design-system/pattern-library.md
+  - .factory/design-system/token-audit.md
+  - .factory/design-system/ux-patterns.md
+  edges_out:
+  - target: design_auditor
+    condition: PROCEED
+  - target: fork_discover_research
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_discover_research: Verify all five design research artifacts
+      exist and are substantive. token-audit.md must list actual CSS custom properties.
+      component-inventory.md must list actual .tsx files with component names. pattern-library.md
+      must describe actual page layout patterns. ux-patterns.md must describe actual
+      animation, hierarchy, or UX patterns. infra-context.md must describe the deployment
+      environment and backend API architecture. RELOOP if any artifact is empty or
+      clearly fabricated. PROCEED if all five have real data.
+    max_iterations_gate_discover_research: '3'
+design_auditor:
+  type: AgentNode
+  id: design_auditor
+  role: strategist
+  blocking: 'true'
+  reads:
+  - .factory/design-system/component-inventory.md
+  - .factory/design-system/infra-context.md
+  - .factory/design-system/pattern-library.md
+  - .factory/design-system/token-audit.md
+  - .factory/design-system/ux-patterns.md
+  writes:
+  - .factory/design-system/design-baseline.json
+  - .factory/design-system/rules.md
+  edges_out:
+  - target: gate_discover_audit
+    condition: null
+  slots:
+    task_prompt_design_auditor: 'Design system auditor (discover mode). Read .factory/design-system/token-audit.md,
+      component-inventory.md, pattern-library.md, ux-patterns.md, and infra-context.md.
+      Synthesize into two outputs: (1) .factory/design-system/design-baseline.json
+      — valid JSON with token_registry, component_inventory, pattern_library, ux_patterns,
+      and infrastructure keys. The infrastructure key must include: deployment (type,
+      orchestrator), container_capabilities (available and unavailable tools), resource_access
+      (how the backend reaches external resources), api_architecture (framework, router
+      pattern, existing endpoints), and data_sources (where data comes from). Extract
+      actual values from the research, do not fabricate. (2) .factory/design-system/rules.md
+      — HARD RULES section (token purity, font family, component wrappers, dark mode
+      parity, accessibility floor, infrastructure fidelity — no unavailable system
+      tools, use established resource access patterns, follow API registration pattern)
+      and SOFT GUIDELINES section (spacing, border-radius, motion choreography, icons,
+      page structure, status colors, information hierarchy, user-friendliness). If
+      previous design-baseline.json exists, merge and flag drift. Preserve any existing
+      MANUAL OVERRIDES section in rules.md. This is a discover-only run — the design
+      system files will be reviewed and edited by a human designer before feature
+      builds.
+
+      Read: .factory/design-system/component-inventory.md, .factory/design-system/infra-context.md,
+      .factory/design-system/pattern-library.md, .factory/design-system/token-audit.md,
+      .factory/design-system/ux-patterns.md
+
+      Write output to: .factory/design-system/design-baseline.json, .factory/design-system/rules.md'
+    timeout_design_auditor: '600'
+gate_discover_audit:
+  type: GateNode
+  id: gate_discover_audit
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/design-system/design-baseline.json
+  - .factory/design-system/rules.md
+  edges_out:
+  - target: archivist_discover
+    condition: PROCEED
+  - target: design_auditor
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_discover_audit: Verify design-baseline.json is valid JSON with
+      token_registry, component_inventory, and pattern_library keys. Verify rules.md
+      contains both HARD RULES and SOFT GUIDELINES sections. RELOOP if malformed.
+      PROCEED if structurally valid.
+    max_iterations_gate_discover_audit: '3'
+archivist_discover:
+  type: AgentNode
+  id: archivist_discover
+  role: archivist
+  blocking: 'false'
+  reads:
+  - .factory/design-system/design-baseline.json
+  - .factory/design-system/rules.md
+  writes:
+  - .factory/archive/design-discover.md
+  edges_out: []
+  slots:
+    task_prompt_archivist_discover: 'Archive the design system discovery results.
+      Note which artifacts were produced and summarize the design system for future
+      reference. The user should review and edit the design system files before running
+      feature builds.
+
+      Read: .factory/design-system/design-baseline.json, .factory/design-system/rules.md
+
+      Write output to: .factory/archive/design-discover.md'
+    timeout_archivist_discover: '300'

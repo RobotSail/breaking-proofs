@@ -1,11 +1,15 @@
-"""Pure-Python reference oracle — zero external dependencies.
+"""Pure-Python reference oracle with structlog instrumentation.
 
-Uses only int and pow(base, exp, mod). Deliberately naive and
-line-by-line auditable. This is the trust anchor for cross-checking
-the galois-based oracle.
+Uses only int and pow(base, exp, mod) for all computations.
+Deliberately naive and line-by-line auditable. This is the trust
+anchor for cross-checking the galois-based oracle.
 """
 
 from itertools import product
+
+from breaking_proofs.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def ref_prime_factors(n: int) -> set[int]:
@@ -72,6 +76,7 @@ def ref_enumerate_codebook(p: int, k: int, domain: list[int]) -> list[list[int]]
     for coeffs in product(range(p), repeat=k):
         cw = ref_encode(list(coeffs), domain, p)
         codebook.append(cw)
+    logger.debug("ref_enumerate_codebook", p=p, k=k, n=len(domain), codebook_size=len(codebook))
     return codebook
 
 
@@ -103,6 +108,7 @@ def ref_incidence_count(
         d = ref_min_distance(w, codebook, p)
         if d <= delta_n:
             count += 1
+    logger.info("ref_incidence_count", p=p, n=len(f), delta_n=delta_n, count=count)
     return count
 
 
@@ -123,5 +129,7 @@ def ref_has_correlated_agreement(
                 if (f[i] - vf[i]) % p == 0 and (g[i] - vg[i]) % p == 0
             )
             if agree >= required:
+                logger.info("ref_correlated_agreement_found", n=n, delta_n=delta_n, agreement=agree)
                 return True
+    logger.info("ref_correlated_agreement_absent", n=n, delta_n=delta_n)
     return False

@@ -1,0 +1,251 @@
+refiner:
+  type: AgentNode
+  id: refiner
+  role: refiner
+  blocking: 'true'
+  reads: []
+  writes:
+  - .factory/reviews/refiner-latest.md
+  - .factory/strategy/current.md
+  edges_out:
+  - target: gate_refiner
+    condition: null
+  slots:
+    task_prompt_refiner: 'Classify and scope a refinement request. Read CLAUDE.md
+      and factory.md. Analyze the codebase to identify which files need to change,
+      estimate scope, and classify the request as Tier 1, 2, or 3. Produce the structured
+      classification output with a Builder task description. Write the refinement
+      plan to .factory/strategy/current.md.
+
+      Write output to: .factory/reviews/refiner-latest.md, .factory/strategy/current.md'
+    timeout_refiner: '600'
+gate_refiner:
+  type: GateNode
+  id: gate_refiner
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/reviews/refiner-latest.md
+  edges_out:
+  - target: gate_tier
+    condition: PROCEED
+  - target: refiner
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_refiner: Review Refiner classification. Is the tier classification
+      reasonable? Are the identified files correct? Is the Builder task description
+      specific enough? REDIRECT if the classification is wrong.
+    max_iterations_gate_refiner: '3'
+gate_tier:
+  type: GateNode
+  id: gate_tier
+  evaluator_type: fn
+  evaluator_command: python3 -c "from pathlib import Path; text = Path('{project_path}/.factory/reviews/refiner-latest.md').read_text();
+    print('HALT' if 'Tier 3' in text or 'tier 3' in text or 'TIER 3' in text else
+    'PROCEED')"
+  reads:
+  - .factory/reviews/refiner-latest.md
+  edges_out:
+  - target: begin
+    condition: PROCEED
+begin:
+  type: FnNode
+  id: begin
+  command: factory begin {project_path} --hypothesis "$HYPOTHESIS"
+  reads: []
+  writes:
+  - .factory/experiments/current_id
+  edges_out:
+  - target: create_issue
+    condition: null
+  slots:
+    finalize_command_begin: factory begin $PROJECT_PATH --hypothesis "$HYPOTHESIS"
+create_issue:
+  type: FnNode
+  id: create_issue
+  command: 'gh issue create --title "Refine: refinement request" --label "refinement"
+    --body "Factory refinement experiment."'
+  reads:
+  - .factory/reviews/refiner-latest.md
+  writes: []
+  edges_out:
+  - target: builder
+    condition: null
+builder:
+  type: AgentNode
+  id: builder
+  role: builder
+  blocking: 'true'
+  reads:
+  - .factory/reviews/refiner-latest.md
+  writes:
+  - .factory/reviews/builder-latest.md
+  edges_out:
+  - target: fork_qa
+    condition: null
+  slots:
+    task_prompt_builder: 'Implement the refinement described in the Refiner''s output.
+      Read the GitHub issue. Read CLAUDE.md and factory.md. Implement exactly what
+      the issue describes. Run tests. Commit and open a draft PR.
+
+      Read: .factory/reviews/refiner-latest.md
+
+      Write output to: .factory/reviews/builder-latest.md'
+    timeout_builder: '1200'
+fork_qa:
+  type: ForkNode
+  id: fork_qa
+  targets: health_checker,code_reviewer,adversarial_tester
+  edges_out:
+  - target: join_qa
+    condition: null
+health_checker:
+  type: AgentNode
+  id: health_checker
+  role: health_checker
+  blocking: 'true'
+  reads:
+  - .factory/reviews/builder-latest.md
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/health-check.md
+  edges_out: []
+  slots:
+    task_prompt_health_checker: 'Execute health_checker task for the project.
+
+      Read: .factory/reviews/builder-latest.md, .factory/strategy/current.md
+
+      Write output to: .factory/reviews/health-check.md'
+    timeout_health_checker: '600'
+code_reviewer:
+  type: AgentNode
+  id: code_reviewer
+  role: code_reviewer
+  blocking: 'true'
+  reads:
+  - .factory/reviews/builder-latest.md
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/code-review.md
+  edges_out: []
+  slots:
+    task_prompt_code_reviewer: 'Run `factory guard --check-scope` to verify the refinement
+      stays within declared scope.
+
+      Read: .factory/reviews/builder-latest.md, .factory/strategy/current.md
+
+      Write output to: .factory/reviews/code-review.md'
+    timeout_code_reviewer: '900'
+adversarial_tester:
+  type: AgentNode
+  id: adversarial_tester
+  role: adversarial_tester
+  blocking: 'true'
+  reads:
+  - .factory/reviews/builder-latest.md
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/adversarial-qa.md
+  edges_out: []
+  slots:
+    task_prompt_adversarial_tester: 'Execute adversarial_tester task for the project.
+
+      Read: .factory/reviews/builder-latest.md, .factory/strategy/current.md
+
+      Write output to: .factory/reviews/adversarial-qa.md'
+    timeout_adversarial_tester: '1800'
+join_qa:
+  type: JoinNode
+  id: join_qa
+  sources: health_checker,code_reviewer,adversarial_tester
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  - .factory/reviews/code-review.md
+  - .factory/reviews/health-check.md
+  writes: []
+  edges_out:
+  - target: gate_qa
+    condition: null
+gate_qa:
+  type: GateNode
+  id: gate_qa
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  - .factory/reviews/code-review.md
+  - .factory/reviews/health-check.md
+  edges_out:
+  - target: gate_doc_freshness
+    condition: PROCEED
+  - target: builder
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_qa: Read QA output. Did all verification sections pass? Are there
+      issues that need Builder fixes? REDIRECT to Builder if issues found (max 3 iterations).
+    max_iterations_gate_qa: '3'
+gate_doc_freshness:
+  type: GateNode
+  id: gate_doc_freshness
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  edges_out:
+  - target: gate_precheck
+    condition: PROCEED
+  - target: builder
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_doc_freshness: Check the PR diff for documentation freshness.
+      If public APIs, CLI commands, configuration options, or architecture were changed
+      or added, corresponding documentation (README.md, CLAUDE.md, docstrings, --help
+      text, or doc/ files) MUST be updated. PROCEED if docs are current or no doc-worthy
+      changes exist. RELOOP to builder if documentation is stale — specify exactly
+      which changes need doc updates.
+    max_iterations_gate_doc_freshness: '3'
+gate_precheck:
+  type: GateNode
+  id: gate_precheck
+  evaluator_type: fn
+  evaluator_command: factory precheck {project_path} --score-before 0 --score-after
+    0
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  edges_out:
+  - target: finalize
+    condition: PROCEED
+  - target: archivist
+    condition: HALT
+finalize:
+  type: FnNode
+  id: finalize
+  command: factory finalize {project_path} --id $EXP_ID --verdict $VERDICT --hypothesis
+    "$HYPOTHESIS"
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  writes:
+  - .factory/experiments/verdict.json
+  edges_out:
+  - target: archivist
+    condition: null
+  slots:
+    finalize_command_finalize: factory finalize $PROJECT_PATH --id $EXP_ID --verdict
+      $VERDICT --hypothesis "$HYPOTHESIS"
+archivist:
+  type: AgentNode
+  id: archivist
+  role: archivist
+  blocking: 'false'
+  reads:
+  - .factory/experiments/verdict.json
+  writes:
+  - .factory/archive/refinement.md
+  edges_out: []
+  slots:
+    task_prompt_archivist: 'Archive refinement experiment results and learnings.
+
+      Read: .factory/experiments/verdict.json
+
+      Write output to: .factory/archive/refinement.md'
+    timeout_archivist: '300'

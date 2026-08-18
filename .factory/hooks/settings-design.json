@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/osilkin/breaking-proofs/.factory-worktrees/run-b232616a/.factory/hooks/verify-design.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

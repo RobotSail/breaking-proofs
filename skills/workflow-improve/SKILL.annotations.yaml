@@ -1,0 +1,318 @@
+study:
+  type: Study
+  id: study
+  command: factory study {project_path}
+  writes:
+  - .factory/strategy/observations.md
+  edges_out:
+  - target: researcher
+    condition: null
+researcher:
+  type: AgentNode
+  id: researcher
+  role: researcher
+  blocking: 'true'
+  reads:
+  - .factory/strategy/observations.md
+  writes:
+  - .factory/strategy/research-local.md
+  edges_out:
+  - target: gate_research
+    condition: null
+  slots:
+    task_prompt_researcher: 'Deep research for the project. Read observations at .factory/strategy/observations.md.
+      Analyze codebase structure, eval scores, and experiment history. Search the
+      web for best practices relevant to weak dimensions. Check .factory/archive/
+      for prior knowledge. Write findings to .factory/strategy/research-local.md.
+
+      Read: .factory/strategy/observations.md
+
+      Write output to: .factory/strategy/research-local.md'
+    timeout_researcher: '600'
+gate_research:
+  type: GateNode
+  id: gate_research
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/strategy/research-local.md
+  edges_out:
+  - target: strategist
+    condition: PROCEED
+  - target: researcher
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_research: Are observations grounded in data? Did web research
+      surface useful patterns? Any blind spots in the analysis?
+    max_iterations_gate_research: '3'
+strategist:
+  type: AgentNode
+  id: strategist
+  role: strategist
+  blocking: 'true'
+  reads:
+  - .factory/strategy/observations.md
+  - .factory/strategy/research-local.md
+  writes:
+  - .factory/strategy/current.md
+  edges_out:
+  - target: gate_strategy
+    condition: null
+  slots:
+    task_prompt_strategist: 'Generate prioritized hypotheses. Read the backlog at
+      .factory/strategy/backlog.md — clear as many items as possible. Read Hypothesis
+      Budget from observations for constraints. Read CEO research review at .factory/reviews/ceo-verdict-researcher.md.
+      Each hypothesis must be specific, scoped to one PR, tied to observations, with
+      expected impact on eval dimensions. Tag backlog items with **Backlog item:**
+      and new items with **New:**. Write to .factory/strategy/current.md.
+
+      Read: .factory/strategy/observations.md, .factory/strategy/research-local.md
+
+      Write output to: .factory/strategy/current.md'
+    timeout_strategist: '600'
+gate_strategy:
+  type: GateNode
+  id: gate_strategy
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/strategy/current.md
+  edges_out:
+  - target: apply_spec_diff
+    condition: PROCEED
+  - target: strategist
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_strategy: 'HARD GATE. Check: specific enough to implement? Scoped
+      to one PR? Expected eval impact realistic? Follows FEEC priority? Not redundant
+      with reverted experiment? At least one growth hypothesis? Backlog convergence?
+      Write PLAN APPROVED with approved hypotheses in priority order.'
+    max_iterations_gate_strategy: '3'
+apply_spec_diff:
+  type: FnNode
+  id: apply_spec_diff
+  command: factory spec apply-diff {project_path}
+  reads:
+  - .factory/strategy/current.md
+  writes:
+  - SPEC.md
+  edges_out:
+  - target: begin
+    condition: null
+begin:
+  type: FnNode
+  id: begin
+  command: factory begin {project_path} --hypothesis "$HYPOTHESIS"
+  reads: []
+  writes:
+  - .factory/experiments/current_id
+  edges_out:
+  - target: builder
+    condition: null
+  slots:
+    finalize_command_begin: factory begin $PROJECT_PATH --hypothesis "$HYPOTHESIS"
+builder:
+  type: AgentNode
+  id: builder
+  role: builder
+  blocking: 'true'
+  reads:
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/builder-latest.md
+  edges_out:
+  - target: gate_build
+    condition: null
+  slots:
+    task_prompt_builder: 'Implement the current hypothesis from .factory/strategy/current.md.
+      Read CLAUDE.md and factory.md. Read the CEO strategy approval. Implement exactly
+      what the hypothesis describes. Run tests. Commit and open a draft PR.
+
+      Read: .factory/strategy/current.md
+
+      Write output to: .factory/reviews/builder-latest.md'
+    timeout_builder: '1200'
+gate_build:
+  type: GateNode
+  id: gate_build
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/reviews/builder-latest.md
+  edges_out:
+  - target: fork_qa
+    condition: PROCEED
+  - target: builder
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_build: Read builder output and PR diff. Does work match the hypothesis?
+      No scope creep? Tests included? REDIRECT if off-scope.
+    max_iterations_gate_build: '3'
+fork_qa:
+  type: ForkNode
+  id: fork_qa
+  targets: health_checker,code_reviewer,adversarial_tester
+  edges_out:
+  - target: join_qa
+    condition: null
+health_checker:
+  type: AgentNode
+  id: health_checker
+  role: health_checker
+  blocking: 'true'
+  reads:
+  - .factory/reviews/builder-latest.md
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/health-check.md
+  edges_out: []
+  slots:
+    task_prompt_health_checker: 'Execute health_checker task for the project.
+
+      Read: .factory/reviews/builder-latest.md, .factory/strategy/current.md
+
+      Write output to: .factory/reviews/health-check.md'
+    timeout_health_checker: '600'
+code_reviewer:
+  type: AgentNode
+  id: code_reviewer
+  role: code_reviewer
+  blocking: 'true'
+  reads:
+  - .factory/reviews/builder-latest.md
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/code-review.md
+  edges_out: []
+  slots:
+    task_prompt_code_reviewer: 'Execute code_reviewer task for the project.
+
+      Read: .factory/reviews/builder-latest.md, .factory/strategy/current.md
+
+      Write output to: .factory/reviews/code-review.md'
+    timeout_code_reviewer: '900'
+adversarial_tester:
+  type: AgentNode
+  id: adversarial_tester
+  role: adversarial_tester
+  blocking: 'true'
+  reads:
+  - .factory/reviews/builder-latest.md
+  - .factory/strategy/current.md
+  writes:
+  - .factory/reviews/adversarial-qa.md
+  edges_out: []
+  slots:
+    task_prompt_adversarial_tester: 'Execute adversarial_tester task for the project.
+
+      Read: .factory/reviews/builder-latest.md, .factory/strategy/current.md
+
+      Write output to: .factory/reviews/adversarial-qa.md'
+    timeout_adversarial_tester: '1800'
+join_qa:
+  type: JoinNode
+  id: join_qa
+  sources: health_checker,code_reviewer,adversarial_tester
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  - .factory/reviews/code-review.md
+  - .factory/reviews/health-check.md
+  writes: []
+  edges_out:
+  - target: gate_qa
+    condition: null
+gate_qa:
+  type: GateNode
+  id: gate_qa
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  - .factory/reviews/code-review.md
+  - .factory/reviews/health-check.md
+  edges_out:
+  - target: gate_doc_freshness
+    condition: PROCEED
+  - target: builder
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_qa: Review QA results. PROCEED if all checks pass. RELOOP to
+      builder (max 3 iterations) if issues found.
+    max_iterations_gate_qa: '3'
+gate_doc_freshness:
+  type: GateNode
+  id: gate_doc_freshness
+  evaluator_type: agent
+  evaluator_role: ceo
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  edges_out:
+  - target: gate_precheck
+    condition: PROCEED
+  - target: builder
+    condition: RELOOP
+  slots:
+    gate_prompt_gate_doc_freshness: Check the PR diff for documentation freshness.
+      If public APIs, CLI commands, configuration options, or architecture were changed
+      or added, corresponding documentation (README.md, CLAUDE.md, docstrings, --help
+      text, or doc/ files) MUST be updated. PROCEED if docs are current or no doc-worthy
+      changes exist. RELOOP to builder if documentation is stale — specify exactly
+      which changes need doc updates.
+    max_iterations_gate_doc_freshness: '3'
+gate_precheck:
+  type: GateNode
+  id: gate_precheck
+  evaluator_type: fn
+  evaluator_command: factory precheck {project_path} --score-before 0 --score-after
+    0
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  edges_out:
+  - target: finalize
+    condition: PROCEED
+  - target: archivist
+    condition: HALT
+finalize:
+  type: FnNode
+  id: finalize
+  command: factory finalize {project_path} --id $EXP_ID --verdict $VERDICT --hypothesis
+    "$HYPOTHESIS"
+  reads:
+  - .factory/reviews/adversarial-qa.md
+  writes:
+  - .factory/experiments/verdict.json
+  edges_out:
+  - target: archivist
+    condition: null
+  slots:
+    finalize_command_finalize: factory finalize $PROJECT_PATH --id $EXP_ID --verdict
+      $VERDICT --hypothesis "$HYPOTHESIS"
+archivist:
+  type: AgentNode
+  id: archivist
+  role: archivist
+  blocking: 'false'
+  reads:
+  - .factory/experiments/verdict.json
+  writes:
+  - .factory/archive/experiment.md
+  edges_out:
+  - target: spec_update
+    condition: null
+  slots:
+    task_prompt_archivist: 'Archive experiment results and learnings.
+
+      Read: .factory/experiments/verdict.json
+
+      Write output to: .factory/archive/experiment.md'
+    timeout_archivist: '300'
+spec_update:
+  type: FnNode
+  id: spec_update
+  command: python3 -c "from pathlib import Path; import subprocess, sys; sys.exit(0)
+    if not Path('{project_path}/SPEC.md').is_file() else None; r = subprocess.run(['factory',
+    'workflow', 'run', 'spec-update', '{project_path}'], capture_output=True, text=True);
+    print(r.stdout); print(r.stderr, file=sys.stderr); sys.exit(0)"
+  reads: []
+  writes: []
+  edges_out: []
