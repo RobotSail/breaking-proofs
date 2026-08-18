@@ -141,6 +141,44 @@ class TestHarness:
                     assert params.get("rho_num") == 1
                     assert params.get("rho_den") == 8
 
+    def test_harness_max_n_filters_candidates(self):
+        """max_n filters candidates before dispatch, reducing evaluation count."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_all = os.path.join(tmpdir, "all.jsonl")
+            out_bounded = os.path.join(tmpdir, "bounded.jsonl")
+
+            results_all = run_search(
+                max_alpha=4, workers=1, output_path=out_all,
+            )
+            results_bounded = run_search(
+                max_alpha=4, max_n=8, workers=1, output_path=out_bounded,
+            )
+
+            assert len(results_all) > len(results_bounded)
+            for r in results_bounded:
+                if "error" not in r:
+                    assert r["params"]["n"] <= 8
+
+    def test_harness_max_n_excludes_large(self):
+        """Candidates exceeding max_n are not evaluated at all."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = os.path.join(tmpdir, "bounded.jsonl")
+            results = run_search(
+                max_alpha=4, max_n=4, workers=1, output_path=output,
+            )
+            for r in results:
+                if "error" not in r:
+                    assert r["params"]["n"] <= 4
+
+    def test_harness_max_n_all_filtered_returns_empty(self):
+        """If max_n filters out everything, returns empty list."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = os.path.join(tmpdir, "empty.jsonl")
+            results = run_search(
+                max_alpha=4, max_n=1, workers=1, output_path=output,
+            )
+            assert results == []
+
 
 class TestJSONLResume:
     """Test JSONL resume scanning."""

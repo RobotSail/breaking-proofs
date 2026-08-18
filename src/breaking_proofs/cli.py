@@ -70,16 +70,15 @@ def search(
 
     results = run_search(
         max_alpha=max_alpha,
+        max_n=max_n,
         rates=rates,
         workers=workers,
         output_path=output,
         C=c_val,
     )
 
-    filtered = [r for r in results if r.get("params", {}).get("n", 0) <= max_n]
-
-    click.echo(f"\nCompleted {len(results)} evaluations ({len(filtered)} with n <= {max_n})")
-    for r in filtered:
+    click.echo(f"\nCompleted {len(results)} evaluations (max_n={max_n})")
+    for r in results:
         if "error" in r:
             click.echo(f"  {r['params_id']}: ERROR - {r['error']}")
         else:
