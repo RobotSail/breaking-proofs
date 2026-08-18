@@ -45,8 +45,12 @@ def load_completed_ids(output_path: str) -> set[str]:
     return completed
 
 
+BRUTE_FORCE_THRESHOLD = 1_000_000
+
+
 def run_search(
     max_alpha: int = 8,
+    max_n: int | None = None,
     rates: list[tuple[int, int]] | None = None,
     workers: int | None = None,
     output_path: str = DEFAULT_OUTPUT,
@@ -56,6 +60,8 @@ def run_search(
 
     Args:
         max_alpha: Maximum subgroup exponent.
+        max_n: Maximum code length n; candidates with n > max_n are
+            filtered out before worker dispatch.
         rates: List of (numerator, denominator) dyadic rates.
         workers: Pool size (defaults to os.cpu_count()).
         output_path: JSONL output file path.
@@ -72,6 +78,34 @@ def run_search(
 
     candidates = generate_candidates(max_alpha=max_alpha, rates=rates, C=C)
     logger.info("generated_candidates", count=len(candidates), max_alpha=max_alpha)
+
+    if max_n is not None:
+        before = len(candidates)
+        candidates = [c for c in candidates if c.n <= max_n]
+        logger.info(
+            "max_n_filter",
+            max_n=max_n,
+            before=before,
+            after=len(candidates),
+            filtered_out=before - len(candidates),
+        )
+        if not candidates:
+            logger.warning(
+                "max_n_filtered_all",
+                max_n=max_n,
+                message="All candidates exceed max_n — nothing to evaluate",
+            )
+            return []
+
+    for c in candidates:
+        codebook_size = c.p ** c.k
+        if codebook_size > BRUTE_FORCE_THRESHOLD:
+            logger.warning(
+                "large_codebook",
+                params_id=f"p{c.p}_n{c.n}_k{c.k}",
+                codebook_size=codebook_size,
+                message="Exceeds brute-force threshold; structured verifier will be used",
+            )
 
     completed = load_completed_ids(output_path)
     pending = [p for p in candidates if params_to_id(p) not in completed]
