@@ -10,6 +10,9 @@ import os
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from uuid import uuid4
+
+import structlog
 
 from breaking_proofs.logging import get_logger
 from breaking_proofs.search.params import generate_candidates
@@ -61,6 +64,9 @@ def run_search(
     Returns:
         List of result dicts from all completed evaluations this run.
     """
+    run_id = uuid4().hex[:12]
+    structlog.contextvars.bind_contextvars(run_id=run_id)
+
     if workers is None:
         workers = os.cpu_count() or 1
 
@@ -106,6 +112,7 @@ def run_search(
                     "runtime_ms": 0,
                 }
 
+            result["run_id"] = run_id
             results.append(result)
 
             with out_path.open("a") as f:
